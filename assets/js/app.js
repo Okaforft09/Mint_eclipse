@@ -1049,7 +1049,7 @@ async function getEvents() {
 }
 
 
-window.createEvent = async function (event) {
+window.createMintEvent = async function (event) {
   event.preventDefault();
 
   const user = getSession();
