@@ -1139,11 +1139,11 @@ async function renderEvents() {
 async function handleEventFormSubmit(event) {
   event.preventDefault();
 
-  console.log('handleEventFormSubmit started');
+  console.log('EVENT HANDLER STARTED');
 
   const user = getSession();
 
-  console.log('Current user:', user);
+  console.log('CURRENT USER:', user);
 
   if (!user) {
     toast('Sign in to create an event.', true);
@@ -1153,24 +1153,24 @@ async function handleEventFormSubmit(event) {
   const form = event.currentTarget;
 
   const name =
-    form.elements.eventName.value.trim();
+    form.elements['eventName'].value.trim();
 
   const eventDate =
-    form.elements.eventDate.value;
+    form.elements['eventDate'].value;
 
   const location =
-    form.elements.eventLocation.value.trim() ||
+    form.elements['eventLocation'].value.trim() ||
     'To be decided';
 
   const description =
-    form.elements.eventDesc.value.trim() ||
+    form.elements['eventDesc'].value.trim() ||
     'No details yet.';
 
-  console.log('Event form values:', {
-    name,
-    eventDate,
-    location,
-    description
+  console.log('FORM VALUES:', {
+    name: name,
+    eventDate: eventDate,
+    location: location,
+    description: description
   });
 
   if (!name) {
@@ -1199,36 +1199,62 @@ async function handleEventFormSubmit(event) {
     description: description
   };
 
-  console.log('Event row to insert:', row);
+  console.log('ROW BEING SENT:', row);
 
-  const {
-    data,
-    error
-  } = await db
+  const response = await db
     .from('events')
     .insert(row)
     .select()
     .single();
 
-  console.log('Event insert response:', {
-    data,
-    error
-  });
+  console.log('FULL SUPABASE RESPONSE:', response);
 
-  if (error) {
+  if (response.error) {
+    console.error(
+      'EVENT INSERT ERROR:',
+      response.error
+    );
+
     toast(
-      '<b>Event failed:</b> ' +
-      esc(error.message),
+      'Event failed: ' +
+      response.error.message,
       true
     );
+
     return;
   }
+
+  console.log(
+    'EVENT SAVED:',
+    response.data
+  );
 
   form.reset();
 
   await renderEvents();
 
   toast('Event created! 🎉');
+}
+
+function attachEventForm() {
+  const eventForm =
+    document.getElementById('eventForm');
+
+  console.log('EVENT FORM FOUND:', eventForm);
+
+  if (!eventForm) {
+    console.warn('eventForm was not found on this page.');
+    return;
+  }
+
+  eventForm.addEventListener(
+    'submit',
+    handleEventFormSubmit
+  );
+
+  console.log(
+    'EVENT SUBMIT LISTENER ATTACHED'
+  );
 }
 /* ---------- photos: Supabase Storage version ---------- */
 
@@ -1867,5 +1893,8 @@ if (db) {
 
 document.addEventListener(
   'DOMContentLoaded',
-  initPage
+  function () {
+    initPage();
+    attachEventForm();
+  }
 );
