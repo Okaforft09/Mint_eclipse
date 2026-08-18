@@ -707,7 +707,7 @@ async function getLetters() {
 
   if (error) {
     console.error('Letters load error:', error);
-    toast('Could not load your letters.', true);
+    toast('Could not load letters.', true);
     return [];
   }
 
@@ -726,12 +726,18 @@ window.sealLetter = async function (event) {
   }
 
   const form = event.target;
+
   const recipientCode =
     form.recipient.value.trim().toUpperCase();
-  const title = form.title.value.trim();
-  const body = form.body.value.trim();
-  const opensAt =
-    new Date(form.openAt.value).toISOString();
+
+  const title =
+    form.title.value.trim();
+
+  const body =
+    form.body.value.trim();
+
+  const openTime =
+    new Date(form.openAt.value).getTime();
 
   if (!recipientCode) {
     toast('Enter the recipient User ID.', true);
@@ -747,9 +753,6 @@ window.sealLetter = async function (event) {
     toast('Write something in the letter.', true);
     return;
   }
-
-  const openTime =
-    new Date(form.openAt.value).getTime();
 
   if (Number.isNaN(openTime)) {
     toast('Pick a date and time.', true);
@@ -783,24 +786,24 @@ window.sealLetter = async function (event) {
       recipient_id: recipient.id,
       title: title,
       body: body,
-      opens_at: opensAt
+      opens_at: new Date(openTime).toISOString()
     });
 
   if (error) {
     console.error('Letter insert error:', error);
-    toast('Could not seal the letter.', true);
+    toast('Could not send the letter: ' + error.message, true);
     return;
   }
 
   form.reset();
   await renderLetters();
-
   toast('Letter sealed and sent! 📜');
 };
 
 
 async function renderLetters() {
-  const list = document.getElementById('letterList');
+  const list =
+    document.getElementById('letterList');
 
   if (!list) {
     return;
@@ -841,10 +844,6 @@ async function renderLetters() {
     const difference = opensAt - now;
     const sealed = difference > 0;
 
-    const countdown = sealed
-      ? formatCountdown(difference)
-      : null;
-
     return `
       <div class="letter-card${sealed ? '' : ' ready'}">
         <div class="letter-top">
@@ -860,15 +859,13 @@ async function renderLetters() {
             </div>
           </div>
 
-          <div>
-            ${
-              countdown
-                ? `<span class="countdown">
-                    ⏳ ${countdown}
-                  </span>`
-                : '<span class="chip chip--open">📖 Open</span>'
-            }
-          </div>
+          ${
+            sealed
+              ? `<span class="countdown">
+                  ⏳ ${formatCountdown(difference)}
+                </span>`
+              : '<span class="chip chip--open">📖 Open</span>'
+          }
         </div>
 
         <div class="letter-body ${
@@ -900,7 +897,7 @@ async function getEvents() {
 
   if (error) {
     console.error('Events load error:', error);
-    toast('Could not load events.', true);
+    toast('Could not load events: ' + error.message, true);
     return [];
   }
 
@@ -919,12 +916,20 @@ window.createEvent = async function (event) {
   }
 
   const form = event.target;
-  const name = form.eventName.value.trim();
-  const eventDate = form.eventDate.value;
+
+  const name =
+    form.eventName.value.trim();
+
+  const eventDate =
+    form.eventDate.value;
+
   const location =
-    form.eventLocation.value.trim() || 'To be decided';
+    form.eventLocation.value.trim() ||
+    'To be decided';
+
   const description =
-    form.eventDesc.value.trim() || 'No details yet.';
+    form.eventDesc.value.trim() ||
+    'No details yet.';
 
   if (!name) {
     toast('Name the event.', true);
@@ -936,7 +941,7 @@ window.createEvent = async function (event) {
     return;
   }
 
-  const { error } = await db
+  const { data, error } = await db
     .from('events')
     .insert({
       owner_id: user.id,
@@ -944,17 +949,25 @@ window.createEvent = async function (event) {
       event_date: new Date(eventDate).toISOString(),
       location: location,
       description: description
-    });
+    })
+    .select()
+    .single();
+
+  console.log('Event insert result:', {
+    data: data,
+    error: error
+  });
 
   if (error) {
-    console.error('Event insert error:', error);
-    toast('Could not create the event.', true);
+    toast(
+      'Event failed: ' + error.message,
+      true
+    );
     return;
   }
 
   form.reset();
   await renderEvents();
-
   toast('Event created! 🎉');
 };
 
@@ -985,8 +998,11 @@ window.removeEvent = async function (id) {
 
 
 async function renderEvents() {
-  const list = document.getElementById('eventList');
-  const empty = document.getElementById('eventsEmpty');
+  const list =
+    document.getElementById('eventList');
+
+  const empty =
+    document.getElementById('eventsEmpty');
 
   if (!list) {
     return;
@@ -1095,7 +1111,10 @@ window.uploadPhoto = async function (input) {
     '.' +
     extension;
 
-  const { error: uploadError } = await db
+  const {
+    data: uploadedFile,
+    error: uploadError
+  } = await db
     .storage
     .from('photos')
     .upload(path, file, {
@@ -1103,13 +1122,26 @@ window.uploadPhoto = async function (input) {
       upsert: false
     });
 
+  console.log('Photo upload result:', {
+    uploadedFile,
+    uploadError
+  });
+
   if (uploadError) {
     console.error('Photo upload error:', uploadError);
-    toast('Photo upload failed.', true);
+
+    toast(
+      'Photo upload failed: ' +
+      uploadError.message,
+      true
+    );
+
     return;
   }
 
-  const { error: rowError } = await db
+  const {
+    error: rowError
+  } = await db
     .from('photos')
     .insert({
       user_id: user.id,
@@ -1118,12 +1150,19 @@ window.uploadPhoto = async function (input) {
     });
 
   if (rowError) {
-    console.error('Photo record error:', rowError);
-    toast('Photo record could not be saved.', true);
+    console.error('Photo database error:', rowError);
+
+    toast(
+      'Photo record could not be saved: ' +
+      rowError.message,
+      true
+    );
+
     return;
   }
 
   input.value = '';
+
   await renderPhotos();
 
   toast('Photo uploaded! 📷');
@@ -1133,7 +1172,9 @@ window.uploadPhoto = async function (input) {
 window.removePhoto = async function (id, path) {
   const user = getSession();
 
+  
   if (!user) {
+    toast('Sign in to remove photos.', true);
     return;
   }
 
@@ -1240,6 +1281,32 @@ async function renderPhotos() {
   }
 }
 
+window.copyUserId = async function () {
+  const user = getSession();
+
+  if (!user || !user.userId || user.userId === '—') {
+    toast('Your User ID is not available.', true);
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(user.userId);
+    toast('User ID copied! 📋');
+  } catch (error) {
+    console.error('Clipboard error:', error);
+
+    const input =
+      document.createElement('input');
+
+    input.value = user.userId;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    input.remove();
+
+    toast('User ID copied! 📋');
+  }
+};
 
 /* ---------- profile ---------- */
 
@@ -1386,14 +1453,7 @@ async function renderProfile() {
     joinedElement.textContent = joined;
   }
 
-  const letters =
-    getLetters().filter(function (letter) {
-      return (
-        letter.toUserId === user.userId ||
-        letter.fromUserId === user.userId
-      );
-    });
-
+  const letters = await getLetters();
   const statLetters =
     document.getElementById('statLetters');
 
@@ -1404,79 +1464,82 @@ async function renderProfile() {
   const statBucket =
     document.getElementById('statBucket');
 
-  if (statBucket) {
-    statBucket.textContent =
-      getBucket().filter(function (item) {
-        return item.done;
-      }).length +
-      '/' +
-      getBucket().length;
-  }
+ if (statBucket) {
+  const bucket = await getBucket();
+
+  statBucket.textContent =
+    bucket.filter(function (item) {
+      return item.done;
+    }).length +
+    '/' +
+    bucket.length;
+}
 
   const statEvents =
     document.getElementById('statEvents');
 
-  if (statEvents) {
-    statEvents.textContent = getEvents().length;
-  }
-
+ if (statEvents) {
+  const events = await getEvents();
+  statEvents.textContent = events.length;
+}
   const statPhotos =
     document.getElementById('statPhotos');
 
-  if (statPhotos) {
-    statPhotos.textContent = getPhotos().length;
-  }
+ if (statPhotos) {
+  const photos = await getPhotos();
+  statPhotos.textContent = photos.length;
+}
 
   const myLetters =
-    document.getElementById('profileMyLetters');
+  document.getElementById('profileMyLetters');
 
-  if (myLetters) {
-    myLetters.innerHTML = letters.length
-      ? letters.map(function (letter) {
-          const opened =
-            Date.now() >= letter.openedAt ||
-            letter.opened;
+if (myLetters) {
+  myLetters.innerHTML = letters.length
+    ? letters.map(function (letter) {
+        const opensAt =
+          new Date(letter.opens_at).getTime();
 
-          return `
-            <div class="letter-card${
-              opened ? ' ready' : ''
-            }">
-              <div class="letter-top">
-                <div>
-                  <div class="letter-title">
-                    ${esc(letter.title)}
-                  </div>
+        const sealed =
+          opensAt > Date.now();
 
-                  <div class="letter-meta">
-                    To <b>${esc(letter.toUserId)}</b>
-                    · opens
-                    ${new Date(
-                      letter.openedAt
-                    ).toLocaleString()}
-                  </div>
+        return `
+          <div class="letter-card${
+            sealed ? '' : ' ready'
+          }">
+            <div class="letter-top">
+              <div>
+                <div class="letter-title">
+                  ${esc(letter.title)}
                 </div>
 
-                ${
-                  opened
-                    ? '<span class="chip chip--open">📖 Open</span>'
-                    : '<span class="chip chip--sealed">📜 Sealed</span>'
-                }
+                <div class="letter-meta">
+                  Opens ${new Date(
+                    letter.opens_at
+                  ).toLocaleString()}
+                </div>
               </div>
 
-              <div class="letter-body ${
-                opened ? '' : 'blurred'
-              }">
-                ${esc(letter.body)}
-              </div>
+              ${
+                sealed
+                  ? '<span class="chip chip--sealed">📜 Sealed</span>'
+                  : '<span class="chip chip--open">📖 Open</span>'
+              }
             </div>
-          `;
-        }).join('')
-      : `
-        <div class="letter-empty">
-          No letters yet. Create one from the Events page.
-        </div>
-      `;
-  }
+
+            <div class="letter-body ${
+              sealed ? 'blurred' : ''
+            }">
+              ${esc(letter.body)}
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `
+      <div class="letter-empty">
+        No letters yet. Create one from the Events page.
+      </div>
+    `;
+}
 }
 
 
