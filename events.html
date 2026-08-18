@@ -48,7 +48,7 @@
             <div class="d-name js-d-name">Guest</div>
             <div class="d-id js-d-id">Not signed in</div>
           </div>
-          <a href="profile.html">🙍 Edit Profile</a>
+          <a href="profile.html">👤 Edit Profile</a>
           <a href="events.html">✉️ My Letters</a>
           <a href="photos.html">🖼 My Photos</a>
           <button class="drop-item danger" onclick="logout()">🚪 Sign Out</button>
@@ -121,34 +121,79 @@
       </div>
 
       <!-- Create Event -->
-      <div class="card">
-        <div class="section-head">
-          <h2>🎉 Create Event</h2>
-        </div>
-        <p class="muted" style="margin-bottom:1.4rem; font-size:0.92rem;">
-          Plan a gathering with a date, place and description. Friends can RSVP.
-        </p>
-        <form onsubmit="createEvent(event)">
-          <div class="form-group">
-            <label>Event Name</label>
-            <input class="input" name="eventName" type="text" placeholder="Summer Roadtrip 2026" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label>Date</label>
-            <input class="input" name="eventDate" type="datetime-local">
-          </div>
-          <div class="form-group">
-            <label>Location</label>
-            <input class="input" name="eventLocation" type="text" placeholder="Where is it happening?" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea name="eventDesc" placeholder="What should people expect?"></textarea>
-          </div>
-          <button class="btn btn--outline btn--block" type="submit">Create Event</button>
-        </form>
-      </div>
+       
+     <!-- Create Event -->
+<div class="card">
+  <div class="section-head">
+    <h2>🎉 Create Event</h2>
+  </div>
+
+  <p
+    class="muted"
+    style="margin-bottom:1.4rem; font-size:0.92rem;"
+  >
+    Plan a gathering with a date, place and description.
+    Friends can RSVP.
+  </p>
+
+  <form onsubmit="createEvent(event)">
+    <div class="form-group">
+      <label for="eventName">Event Name</label>
+
+      <input
+        class="input"
+        id="eventName"
+        name="eventName"
+        type="text"
+        placeholder="Summer Roadtrip 2026"
+        autocomplete="off"
+        required
+      >
     </div>
+
+    <div class="form-group">
+      <label for="eventDate">Date</label>
+
+      <input
+        class="input"
+        id="eventDate"
+        name="eventDate"
+        type="datetime-local"
+        required
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="eventLocation">Location</label>
+
+      <input
+        class="input"
+        id="eventLocation"
+        name="eventLocation"
+        type="text"
+        placeholder="Where is it happening?"
+        autocomplete="off"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="eventDesc">Description</label>
+
+      <textarea
+        id="eventDesc"
+        name="eventDesc"
+        placeholder="What should people expect?"
+      ></textarea>
+    </div>
+
+    <button
+      class="btn btn--outline btn--block"
+      type="submit"
+    >
+      Create Event
+    </button>
+  </form>
+</div>
 
     <hr class="divider">
 

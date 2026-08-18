@@ -1168,3 +1168,27 @@ select option { background: var(--surface); }
   .brand-name { font-size: 1rem; }
   .nav-inner { gap: 0.5rem; }
 }
+.letter-card--clickable {
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.letter-card--clickable:hover {
+  transform: translateY(-2px);
+  border-color: #3ebfa2;
+  box-shadow: 0 10px 30px rgba(62, 191, 162, 0.16);
+}
+
+.letter-card--clickable:focus {
+  outline: 3px solid rgba(62, 191, 162, 0.55);
+  outline-offset: 3px;
+}
+
+.letter-card--clickable .letter-body.blurred {
+  filter: blur(5px);
+  user-select: none;
+  opacity: 0.65;
+}

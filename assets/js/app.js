@@ -695,6 +695,7 @@ async function getLetters() {
       title,
       body,
       opens_at,
+      opened,
       created_at
     `)
     .or(
@@ -812,8 +813,12 @@ async function renderLetters() {
   const user = getSession();
 
   if (!user) {
-    list.innerHTML =
-      '<div class="letter-empty">Sign in to view your letters.</div>';
+    list.innerHTML = `
+      <div class="letter-empty">
+        Sign in to view your letters.
+      </div>
+    `;
+
     return;
   }
 
@@ -825,13 +830,16 @@ async function renderLetters() {
         <div style="font-size:2.4rem; margin-bottom:0.6rem;">
           🔒
         </div>
+
         <strong>No letters in your vault yet.</strong>
+
         <p class="muted" style="margin-top:0.4rem;">
           Create a timed letter above, or ask a friend to send one
           to your User ID.
         </p>
       </div>
     `;
+
     return;
   }
 
@@ -841,11 +849,34 @@ async function renderLetters() {
     const opensAt =
       new Date(letter.opens_at).getTime();
 
-    const difference = opensAt - now;
-    const sealed = difference > 0;
+    const timeRemaining =
+      opensAt - now;
+
+    const isSealed =
+      timeRemaining > 0 && !letter.opened;
+
+    const isOpen =
+      !isSealed;
+
+    const countdown =
+      timeRemaining > 0
+        ? formatCountdown(timeRemaining)
+        : '';
 
     return `
-      <div class="letter-card${sealed ? '' : ' ready'}">
+      <div
+        class="letter-card letter-card--clickable${
+          isOpen ? ' ready' : ''
+        }"
+        data-letter-id="${esc(letter.id)}"
+        role="button"
+        tabindex="0"
+        aria-label="${
+          isSealed
+            ? 'Sealed letter'
+            : 'Open letter'
+        }"
+      >
         <div class="letter-top">
           <div>
             <div class="letter-title">
@@ -859,25 +890,138 @@ async function renderLetters() {
             </div>
           </div>
 
-          ${
-            sealed
-              ? `<span class="countdown">
-                  ⏳ ${formatCountdown(difference)}
-                </span>`
-              : '<span class="chip chip--open">📖 Open</span>'
-          }
+          <div>
+            ${
+              isSealed
+                ? `<span class="countdown">
+                    ⏳ ${countdown}
+                  </span>`
+                : '<span class="chip chip--open">📖 Open</span>'
+            }
+          </div>
         </div>
 
         <div class="letter-body ${
-          sealed ? 'blurred' : ''
+          isSealed ? 'blurred' : ''
         }">
-          ${esc(letter.body)}
+          ${
+            isSealed
+              ? '🔒 This letter is sealed. Tap it after the timer ends.'
+              : esc(letter.body)
+          }
         </div>
       </div>
     `;
   }).join('');
+
+  document
+    .querySelectorAll('.letter-card--clickable')
+    .forEach(function (card) {
+      card.addEventListener('click', function () {
+        openLetter(card.dataset.letterId);
+      });
+
+      card.addEventListener('keydown', function (event) {
+        if (
+          event.key === 'Enter' ||
+          event.key === ' '
+        ) {
+          event.preventDefault();
+          openLetter(card.dataset.letterId);
+        }
+      });
+    });
 }
 
+async function openLetter(letterId) {
+  const user = getSession();
+
+  if (!user) {
+    toast('Sign in to open letters.', true);
+    return;
+  }
+
+  const {
+    data: letter,
+    error: loadError
+  } = await db
+    .from('letters')
+    .select(`
+      id,
+      sender_id,
+      recipient_id,
+      title,
+      body,
+      opens_at,
+      opened,
+      created_at
+    `)
+    .eq('id', letterId)
+    .maybeSingle();
+
+  if (loadError || !letter) {
+    console.error('Open letter load error:', loadError);
+    toast('Could not find that letter.', true);
+    return;
+  }
+
+  const opensAt =
+    new Date(letter.opens_at).getTime();
+
+  if (opensAt > Date.now()) {
+    const remaining =
+      formatCountdown(opensAt - Date.now());
+
+    toast(
+      'This letter is still sealed. It opens in ' +
+      remaining +
+      '.',
+      true
+    );
+
+    return;
+  }
+
+  if (!letter.opened) {
+    const {
+      data: updatedLetter,
+      error: updateError
+    } = await db
+      .from('letters')
+      .update({
+        opened: true
+      })
+      .eq('id', letter.id)
+      .eq('recipient_id', user.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error(
+        'Open letter update error:',
+        updateError
+      );
+
+      toast(
+        'The letter is ready, but could not be marked as opened.',
+        true
+      );
+
+      return;
+    }
+
+    letter.opened =
+      updatedLetter?.opened ?? true;
+  }
+
+  await renderLetters();
+
+  toast(
+    '<b>' +
+    esc(letter.title) +
+    '</b> is now open! 📖'
+  );
+}
 
 /* ---------- events: Supabase version ---------- */
 
