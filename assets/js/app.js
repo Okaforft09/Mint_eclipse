@@ -1049,71 +1049,6 @@ async function getEvents() {
 }
 
 
-window.createMintEvent = async function (event) {
-  event.preventDefault();
-
-  const user = getSession();
-
-  if (!user) {
-    toast('Sign in to create an event.', true);
-    return;
-  }
-
-  const form = event.target;
-
-  const name =
-    form.eventName.value.trim();
-
-  const eventDate =
-    form.eventDate.value;
-
-  const location =
-    form.eventLocation.value.trim() ||
-    'To be decided';
-
-  const description =
-    form.eventDesc.value.trim() ||
-    'No details yet.';
-
-  if (!name) {
-    toast('Name the event.', true);
-    return;
-  }
-
-  if (!eventDate) {
-    toast('Pick an event date.', true);
-    return;
-  }
-
-  const { data, error } = await db
-    .from('events')
-    .insert({
-      owner_id: user.id,
-      name: name,
-      event_date: new Date(eventDate).toISOString(),
-      location: location,
-      description: description
-    })
-    .select()
-    .single();
-
-  console.log('Event insert result:', {
-    data: data,
-    error: error
-  });
-
-  if (error) {
-    toast(
-      'Event failed: ' + error.message,
-      true
-    );
-    return;
-  }
-
-  form.reset();
-  await renderEvents();
-  toast('Event created! 🎉');
-};
 
 
 window.removeEvent = async function (id) {
@@ -1201,7 +1136,100 @@ async function renderEvents() {
   }).join('');
 }
 
+async function handleEventFormSubmit(event) {
+  event.preventDefault();
 
+  console.log('handleEventFormSubmit started');
+
+  const user = getSession();
+
+  console.log('Current user:', user);
+
+  if (!user) {
+    toast('Sign in to create an event.', true);
+    return;
+  }
+
+  const form = event.currentTarget;
+
+  const name =
+    form.elements.eventName.value.trim();
+
+  const eventDate =
+    form.elements.eventDate.value;
+
+  const location =
+    form.elements.eventLocation.value.trim() ||
+    'To be decided';
+
+  const description =
+    form.elements.eventDesc.value.trim() ||
+    'No details yet.';
+
+  console.log('Event form values:', {
+    name,
+    eventDate,
+    location,
+    description
+  });
+
+  if (!name) {
+    toast('Name the event.', true);
+    return;
+  }
+
+  if (!eventDate) {
+    toast('Pick an event date.', true);
+    return;
+  }
+
+  const parsedDate =
+    new Date(eventDate);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    toast('The event date is invalid.', true);
+    return;
+  }
+
+  const row = {
+    owner_id: user.id,
+    name: name,
+    event_date: parsedDate.toISOString(),
+    location: location,
+    description: description
+  };
+
+  console.log('Event row to insert:', row);
+
+  const {
+    data,
+    error
+  } = await db
+    .from('events')
+    .insert(row)
+    .select()
+    .single();
+
+  console.log('Event insert response:', {
+    data,
+    error
+  });
+
+  if (error) {
+    toast(
+      '<b>Event failed:</b> ' +
+      esc(error.message),
+      true
+    );
+    return;
+  }
+
+  form.reset();
+
+  await renderEvents();
+
+  toast('Event created! 🎉');
+}
 /* ---------- photos: Supabase Storage version ---------- */
 
 async function getPhotos() {
@@ -1766,6 +1794,16 @@ async function initPage() {
   await renderLetters();
   await renderEvents();
   await renderPhotos();
+
+  const eventForm =
+  document.getElementById('eventForm');
+
+if (eventForm) {
+  eventForm.addEventListener(
+    'submit',
+    handleEventFormSubmit
+  );
+}
 
   if (page === 'profile.html') {
     await renderProfile();
