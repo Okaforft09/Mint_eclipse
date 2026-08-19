@@ -1208,3 +1208,60 @@ select option { background: var(--surface); }
 .letter-card--clickable {
   cursor: pointer;
 }
+.letter-tabs {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0;
+}
+
+.letter-tab {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.letter-tab.active {
+  border-color: #3ebfa2;
+  background: rgba(62, 191, 162, 0.14);
+  color: #3ebfa2;
+}
+
+.letter-library-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.letter-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.letter-action {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.letter-action:hover {
+  border-color: #3ebfa2;
+  color: #3ebfa2;
+}
+
+.letter-action--danger:hover {
+  border-color: #e87979;
+  color: #e87979;
+}
+
+.chip--danger {
+  color: #e87979;
+  border-color: #e87979;
+}

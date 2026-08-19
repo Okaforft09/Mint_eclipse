@@ -10,15 +10,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
+
 </head>
 <body>
-
-<div class="bg-scene" aria-hidden="true">
+    <div class="bg-scene" aria-hidden="true">
   <div class="orb orb--teal"></div>
   <div class="orb orb--mint"></div>
   <div class="orb orb--mint2"></div>
 </div>
-
 <!-- ============ NAVBAR ============ -->
 <nav class="nav">
   <div class="container nav-inner">
@@ -62,8 +61,7 @@
     </div>
   </div>
 </nav>
-
-<!-- ============ MOBILE SIDEBAR ============ -->
+    <!-- ============ MOBILE SIDEBAR ============ -->
 <aside class="sidebar" id="sidebar">
   <a class="brand" href="index.html">
     <svg width="30" height="30" viewBox="0 0 100 100" fill="none" aria-hidden="true">
@@ -78,7 +76,7 @@
   <a class="s-link" data-page="bucket" href="bucket.html">🎯 Bucket List</a>
   <a class="s-link" data-page="events" href="events.html">📜 Events & Letters</a>
   <a class="s-link" data-page="photos" href="photos.html">📷 Photos</a>
-  <a class="s-link" data-page="letter-library" href="letter-library.html">📙Letter Library</a>
+  <a class="s-link" data-page="letter-library" href="letter-library.html">📗📘📙Letter Library</a>
   <div class="s-auth">
     <a class="btn" href="login.html" data-guest-only>Sign In</a>
     <a class="btn btn--outline" href="profile.html" data-auth-required>Edit Profile</a>
@@ -87,70 +85,48 @@
 </aside>
 <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 
-<!-- ============ MAIN ============ -->
-<main>
-  <section class="page">
-    <div class="hero">
-      <span class="eclipse">
-        <svg width="110" height="110" viewBox="0 0 100 100" fill="none" aria-hidden="true">
-          <circle cx="50" cy="46" r="22" fill="#1f4037"/>
-          <circle cx="50" cy="46" r="22" stroke="#3ebfa2" stroke-width="5"/>
-          <path d="M28 76 q8 -8 16 0 t16 0 t16 0" stroke="#3ebfa2" stroke-width="4" stroke-linecap="round"/>
-          <circle cx="50" cy="46" r="9" fill="#0a100e"/>
-        </svg>
-      </span>
-      <h1>Send <span class="grad-word">time</span>,<br>seal your <span class="grad-word">memories</span>.</h1>
-      <p class="lede">
-        Mint Eclipse is a place to write letters that unlock in the future, dream up a bucket list,
-        gather people for events, and keep the places and things you love in one glowing gallery.
-      </p>
-      <div class="hero-actions">
-        <a class="btn" href="events.html">✉️ Write a Timed Letter</a>
-        <a class="btn btn--outline" href="photos.html">📷 Browse Photos</a>
-      </div>
-    </div>
-
-    <div class="feature-grid">
-      <button class="feature" onclick="location.href='bucket.html'">
-        <div class="f-icon">🎯</div>
-        <h3>Bucket List</h3>
-        <p>Dream out loud. Add goals, tick them off as you go, and watch your progress grow.</p>
-      </button>
-      <button class="feature" onclick="location.href='events.html'">
-        <div class="f-icon">📜</div>
-        <h3>Timed Letters</h3>
-        <p>Seal a letter to a friend's User ID and set the exact moment it unlocks.</p>
-      </button>
-      <button class="feature" onclick="location.href='events.html'">
-        <div class="f-icon">🎉</div>
-        <h3>Events</h3>
-        <p>Plan gatherings with a date, place and RSVP list — invite your people to show up.</p>
-      </button>
-      <button class="feature" onclick="location.href='photos.html'">
-        <div class="f-icon">🌅</div>
-        <h3>Photo Gallery</h3>
-        <p>Upload images of things and places that matter. Build a gallery of your world.</p>
-      </button>
-    </div>
-
-    <div class="how-row">
-      <div class="how-step">
-        <span class="n">1</span>
-        <h4>Create an account</h4>
-        <p>Sign up in seconds and you get your own User ID — your address for letters.</p>
-      </div>
-      <div class="how-step">
-        <span class="n">2</span>
-        <h4>Seal a letter</h4>
-        <p>Write to any User ID and set a timer. The letter stays blurred until the moment arrives.</p>
-      </div>
-      <div class="how-step">
-        <span class="n">3</span>
-        <h4>Watch it open</h4>
-        <p>When the clock runs out, the letter reveals itself. Time travel, delivered.</p>
-      </div>
-    </div>
+<main class="page-shell">
+  <section class="page-heading">
+    <p class="eyebrow">Letters</p>
+    <h1>Letter Library</h1>
+    <p class="muted">
+      View your archived, favourited, and deleted letters.
+    </p>
   </section>
+
+  <nav
+    class="letter-tabs"
+    aria-label="Letter library sections"
+  >
+    <button
+      class="letter-tab active"
+      type="button"
+      data-library-tab="archived"
+    >
+      🗃 Archived
+    </button>
+
+    <button
+      class="letter-tab"
+      type="button"
+      data-library-tab="favourite"
+    >
+      ★ Favourited
+    </button>
+
+    <button
+      class="letter-tab"
+      type="button"
+      data-library-tab="deleted"
+    >
+      🗑 Deleted
+    </button>
+  </nav>
+
+  <section
+    id="letterLibraryList"
+    class="letter-library-list"
+  ></section>
 </main>
 
 <!-- ============ FOOTER ============ -->
