@@ -1192,3 +1192,19 @@ select option { background: var(--surface); }
   user-select: none;
   opacity: 0.65;
 }
+.letter-section {
+  margin-bottom: 2rem;
+}
+
+.letter-group {
+  display: grid;
+  gap: 1rem;
+}
+
+.letter-section .section-head {
+  margin-bottom: 1rem;
+}
+
+.letter-card--clickable {
+  cursor: pointer;
+}

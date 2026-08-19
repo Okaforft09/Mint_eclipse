@@ -686,7 +686,10 @@ async function getLetters() {
     return [];
   }
 
-  const { data, error } = await db
+  const {
+    data: letters,
+    error: lettersError
+  } = await db
     .from('letters')
     .select(`
       id,
@@ -704,15 +707,72 @@ async function getLetters() {
       ',recipient_id.eq.' +
       user.id
     )
-    .order('opens_at', { ascending: true });
+    .order('opens_at', {
+      ascending: true
+    });
 
-  if (error) {
-    console.error('Letters load error:', error);
-    toast('Could not load letters.', true);
+  if (lettersError) {
+    console.error(
+      'Letters load error:',
+      lettersError
+    );
+
+    toast(
+      'Could not load letters: ' +
+      lettersError.message,
+      true
+    );
+
     return [];
   }
 
-  return data || [];
+  if (!letters || letters.length === 0) {
+    return [];
+  }
+
+  const profileIds = [
+    ...new Set(
+      letters.flatMap(function (letter) {
+        return [
+          letter.sender_id,
+          letter.recipient_id
+        ];
+      })
+    )
+  ];
+
+  const {
+    data: profiles,
+    error: profilesError
+  } = await db
+    .from('profiles')
+    .select('id, user_id, name')
+    .in('id', profileIds);
+
+  if (profilesError) {
+    console.error(
+      'Letter profiles load error:',
+      profilesError
+    );
+
+    return letters;
+  }
+
+  const profileMap = new Map(
+    (profiles || []).map(function (profile) {
+      return [profile.id, profile];
+    })
+  );
+
+  return letters.map(function (letter) {
+    return {
+      ...letter,
+      senderProfile:
+        profileMap.get(letter.sender_id) || null,
+      recipientProfile:
+        profileMap.get(letter.recipient_id) || null
+    };
+  });
 }
 
 
@@ -801,6 +861,56 @@ window.sealLetter = async function (event) {
   toast('Letter sealed and sent! 📜');
 };
 
+async function updateLetterCountdowns() {
+  const cards =
+    document.querySelectorAll(
+      '.letter-card--clickable'
+    );
+
+  if (!cards.length) {
+    return;
+  }
+
+  const letters = await getLetters();
+  const now = Date.now();
+
+  cards.forEach(function (card) {
+    const letter =
+      letters.find(function (item) {
+        return item.id === card.dataset.letterId;
+      });
+
+    if (!letter) {
+      return;
+    }
+
+    const opensAt =
+      new Date(letter.opens_at).getTime();
+
+    const remaining =
+      opensAt - now;
+
+    if (remaining > 0) {
+      const countdown =
+        card.querySelector('.countdown');
+
+      if (countdown) {
+        countdown.textContent =
+          '⏳ ' + formatCountdown(remaining);
+      }
+
+      return;
+    }
+
+    const chip =
+      card.querySelector('.countdown');
+
+    if (chip) {
+      chip.outerHTML =
+        '<span class="chip chip--open">📖 Tap to open</span>';
+    }
+  });
+}
 
 async function renderLetters() {
   const list =
@@ -824,112 +934,349 @@ async function renderLetters() {
 
   const letters = await getLetters();
 
-  if (letters.length === 0) {
-    list.innerHTML = `
-      <div class="letter-empty">
-        <div style="font-size:2.4rem; margin-bottom:0.6rem;">
-          🔒
-        </div>
+  const received =
+    letters.filter(function (letter) {
+      return letter.recipient_id === user.id;
+    });
 
-        <strong>No letters in your vault yet.</strong>
+  const sent =
+    letters.filter(function (letter) {
+      return letter.sender_id === user.id;
+    });
 
-        <p class="muted" style="margin-top:0.4rem;">
-          Create a timed letter above, or ask a friend to send one
-          to your User ID.
-        </p>
+  list.innerHTML = `
+    <section class="letter-section">
+      <div class="section-head">
+        <h2>📥 Received Letters</h2>
+        <span class="muted">
+          ${received.length}
+        </span>
       </div>
-    `;
+
+      <div class="letter-group" id="receivedLetters">
+        ${
+          received.length
+            ? received.map(
+                renderReceivedLetter
+              ).join('')
+            : `
+              <div class="letter-empty">
+                You have not received any letters yet.
+              </div>
+            `
+        }
+      </div>
+    </section>
+
+    <section class="letter-section">
+      <div class="section-head">
+        <h2>📤 Sent Letters</h2>
+        <span class="muted">
+          ${sent.length}
+        </span>
+      </div>
+
+      <div class="letter-group" id="sentLetters">
+        ${
+          sent.length
+            ? sent.map(
+                renderSentLetter
+              ).join('')
+            : `
+              <div class="letter-empty">
+                You have not sent any letters yet.
+              </div>
+            `
+        }
+      </div>
+    </section>
+  `;
+
+  attachLetterCardHandlers();
+}
+
+async function handleLetterCardClick(card) {
+  const letterId =
+    card.dataset.letterId;
+
+  const letters =
+    await getLetters();
+
+  const letter =
+    letters.find(function (item) {
+      return item.id === letterId;
+    });
+
+  if (!letter) {
+    toast('Letter could not be found.', true);
+    return;
+  }
+
+  const opensAt =
+    new Date(letter.opens_at).getTime();
+
+  if (opensAt > Date.now()) {
+    toast(
+      'This letter is still sealed. It opens in ' +
+      formatCountdown(opensAt - Date.now()) +
+      '.',
+      true
+    );
 
     return;
   }
 
-  const now = Date.now();
+  const body =
+    card.querySelector('.letter-body');
 
-  list.innerHTML = letters.map(function (letter) {
-    const opensAt =
-      new Date(letter.opens_at).getTime();
+  const isExpanded =
+    card.classList.contains('expanded');
 
-    const timeRemaining =
-      opensAt - now;
+  if (isExpanded) {
+    card.classList.remove('expanded');
 
-    const isSealed =
-      timeRemaining > 0 && !letter.opened;
+    if (body) {
+      body.textContent =
+        letter.recipient_id === getSession().id
+          ? '📖 Tap to read this letter.'
+          : letter.body;
+    }
 
-    const isOpen =
-      !isSealed;
+    return;
+  }
 
-    const countdown =
-      timeRemaining > 0
-        ? formatCountdown(timeRemaining)
-        : '';
+  if (body) {
+    body.textContent = letter.body;
+    body.classList.remove('blurred');
+  }
 
-    return `
-      <div
-        class="letter-card letter-card--clickable${
-          isOpen ? ' ready' : ''
-        }"
-        data-letter-id="${esc(letter.id)}"
-        role="button"
-        tabindex="0"
-        aria-label="${
-          isSealed
-            ? 'Sealed letter'
-            : 'Open letter'
-        }"
-      >
-        <div class="letter-top">
-          <div>
-            <div class="letter-title">
-              ${esc(letter.title)}
-            </div>
+  card.classList.add('expanded');
 
-            <div class="letter-meta">
-              Opens ${new Date(
-                letter.opens_at
-              ).toLocaleString()}
-            </div>
+  const chip =
+    card.querySelector('.chip');
+
+  if (chip) {
+    chip.textContent = '📖 Open';
+  }
+
+  if (
+    !letter.opened &&
+    letter.recipient_id === getSession().id
+  ) {
+    await markLetterOpened(letter.id);
+  }
+}
+
+
+
+async function markLetterOpened(letterId) {
+  const user = getSession();
+
+  if (!user) {
+    return;
+  }
+
+  const {
+    data,
+    error
+  } = await db
+    .from('letters')
+    .update({
+      opened: true
+    })
+    .eq('id', letterId)
+    .eq('recipient_id', user.id)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      'Mark letter opened error:',
+      error
+    );
+
+    return;
+  }
+
+  console.log(
+    'Letter marked opened:',
+    data
+  );
+}
+
+function renderReceivedLetter(letter) {
+  const opensAt =
+    new Date(letter.opens_at).getTime();
+
+  const remaining =
+    opensAt - Date.now();
+
+  const sealed =
+    remaining > 0;
+
+  const sender =
+    letter.senderProfile;
+
+  const senderName =
+    sender?.name || 'Mint Eclipse user';
+
+  const senderId =
+    sender?.user_id || 'Unknown ID';
+
+  return `
+    <article
+      class="letter-card letter-card--clickable"
+      data-letter-id="${esc(letter.id)}"
+      role="button"
+      tabindex="0"
+    >
+      <div class="letter-top">
+        <div>
+          <div class="letter-title">
+            ${esc(letter.title)}
           </div>
 
-          <div>
-            ${
-              isSealed
-                ? `<span class="countdown">
-                    ⏳ ${countdown}
-                  </span>`
-                : '<span class="chip chip--open">📖 Open</span>'
-            }
+          <div class="letter-meta">
+            From
+            <b class="mint">
+              ${esc(senderName)}
+            </b>
+            · ID:
+            <b>
+              ${esc(senderId)}
+            </b>
+          </div>
+
+          <div class="letter-meta">
+            Opens
+            ${new Date(
+              letter.opens_at
+            ).toLocaleString()}
           </div>
         </div>
 
-        <div class="letter-body ${
-          isSealed ? 'blurred' : ''
-        }">
+        <div>
           ${
-            isSealed
-              ? '🔒 This letter is sealed. Tap it after the timer ends.'
-              : esc(letter.body)
+            sealed
+              ? `<span class="countdown">
+                  ⏳ ${formatCountdown(remaining)}
+                </span>`
+              : '<span class="chip chip--open">📖 Tap to open</span>'
           }
         </div>
       </div>
-    `;
-  }).join('');
 
+      <div class="letter-body ${
+        sealed ? 'blurred' : ''
+      }">
+        ${
+          sealed
+            ? '🔒 This letter is sealed until the timer ends.'
+            : '📖 Tap to read this letter.'
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderSentLetter(letter) {
+  const opensAt =
+    new Date(letter.opens_at).getTime();
+
+  const remaining =
+    opensAt - Date.now();
+
+  const sealed =
+    remaining > 0;
+
+  const recipient =
+    letter.recipientProfile;
+
+  const recipientName =
+    recipient?.name || 'Mint Eclipse user';
+
+  const recipientId =
+    recipient?.user_id || 'Unknown ID';
+
+  return `
+    <article
+      class="letter-card letter-card--clickable"
+      data-letter-id="${esc(letter.id)}"
+      role="button"
+      tabindex="0"
+    >
+      <div class="letter-top">
+        <div>
+          <div class="letter-title">
+            ${esc(letter.title)}
+          </div>
+
+          <div class="letter-meta">
+            To
+            <b class="mint">
+              ${esc(recipientName)}
+            </b>
+            · ID:
+            <b>
+              ${esc(recipientId)}
+            </b>
+          </div>
+
+          <div class="letter-meta">
+            Opens
+            ${new Date(
+              letter.opens_at
+            ).toLocaleString()}
+          </div>
+        </div>
+
+        <div>
+          ${
+            sealed
+              ? `<span class="countdown">
+                  ⏳ ${formatCountdown(remaining)}
+                </span>`
+              : '<span class="chip chip--open">📖 Opened</span>'
+          }
+        </div>
+      </div>
+
+      <div class="letter-body ${
+        sealed ? 'blurred' : ''
+      }">
+        ${
+          sealed
+            ? '🔒 This sent letter is still sealed.'
+            : esc(letter.body)
+        }
+      </div>
+    </article>
+  `;
+}
+
+function attachLetterCardHandlers() {
   document
     .querySelectorAll('.letter-card--clickable')
     .forEach(function (card) {
-      card.addEventListener('click', function () {
-        openLetter(card.dataset.letterId);
-      });
-
-      card.addEventListener('keydown', function (event) {
-        if (
-          event.key === 'Enter' ||
-          event.key === ' '
-        ) {
-          event.preventDefault();
-          openLetter(card.dataset.letterId);
+      card.addEventListener(
+        'click',
+        function () {
+          handleLetterCardClick(card);
         }
-      });
+      );
+
+      card.addEventListener(
+        'keydown',
+        function (event) {
+          if (
+            event.key === 'Enter' ||
+            event.key === ' '
+          ) {
+            event.preventDefault();
+            handleLetterCardClick(card);
+          }
+        }
+      );
     });
 }
 
@@ -1839,13 +2186,15 @@ if (eventForm) {
     page === 'events.html' ||
     page === 'profile.html'
   ) {
-    setInterval(async function () {
-      renderLetters();
+   setInterval(async function () {
+  if (page === 'events.html') {
+    await updateLetterCountdowns();
+  }
 
-      if (page === 'profile.html') {
-        await renderProfile();
-      }
-    }, 1000);
+  if (page === 'profile.html') {
+    await renderProfile();
+  }
+}, 1000);
   }
 
   document.addEventListener('click', function (event) {
