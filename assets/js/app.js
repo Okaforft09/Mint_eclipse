@@ -699,7 +699,10 @@ async function getLetters() {
       body,
       opens_at,
       opened,
-      created_at
+      created_at,
+      is_favourite,
+    archived_at,
+    deleted_at
     `)
     .or(
       'sender_id.eq.' +
@@ -934,15 +937,26 @@ async function renderLetters() {
 
   const letters = await getLetters();
 
-  const received =
-    letters.filter(function (letter) {
-      return letter.recipient_id === user.id;
-    });
+  const activeLetters =
+  letters.filter(function (letter) {
+    return (
+      letter.deleted_at == null &&
+      letter.archived_at == null
+    );
+  });
 
-  const sent =
-    letters.filter(function (letter) {
-      return letter.sender_id === user.id;
-    });
+  const received =
+  activeLetters.filter(function (letter) {
+    return letter.recipient_id === user.id;
+  });
+
+const sent =
+  activeLetters.filter(function (letter) {
+    return letter.sender_id === user.id;
+  });
+
+
+
 
   list.innerHTML = `
     <section class="letter-section">
@@ -1104,6 +1118,257 @@ async function markLetterOpened(letterId) {
   );
 }
 
+async function toggleLetterFavourite(
+  letterId,
+  isFavourite
+) {
+  const user =
+    getSession();
+
+  if (!user) {
+    return;
+  }
+
+  const {
+    data,
+    error
+  } = await db
+    .from('letters')
+    .update({
+      is_favourite: !isFavourite
+    })
+    .eq('id', letterId)
+    .or(
+      'sender_id.eq.' +
+      user.id +
+      ',recipient_id.eq.' +
+      user.id
+    )
+    .select();
+
+  console.log(
+    'Favourite update:',
+    data,
+    error
+  );
+
+  if (error) {
+    console.error(
+      'Favourite letter error:',
+      error
+    );
+
+    toast(
+      'Could not update favourite: ' +
+      error.message,
+      true
+    );
+
+    return;
+  }
+
+  await renderLetters();
+}
+
+async function toggleLetterArchive(
+  letterId,
+  archivedAt
+) {
+  const user =
+    getSession();
+
+  if (!user) {
+    toast(
+      'You must be signed in.',
+      true
+    );
+
+    return;
+  }
+
+  const nextArchivedAt =
+    archivedAt
+      ? null
+      : new Date().toISOString();
+
+  const {
+    data,
+    error
+  } = await db
+    .from('letters')
+    .update({
+      archived_at: nextArchivedAt
+    })
+    .eq('id', letterId)
+    .or(
+      'sender_id.eq.' +
+      user.id +
+      ',recipient_id.eq.' +
+      user.id
+    )
+    .select();
+
+  console.log(
+    'Archive update data:',
+    data
+  );
+
+  console.log(
+    'Archive update error:',
+    error
+  );
+
+  if (error) {
+    toast(
+      'Could not archive letter: ' +
+      error.message,
+      true
+    );
+
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    toast(
+      'No letter was updated. Check the RLS policy.',
+      true
+    );
+
+    return;
+  }
+
+  await renderLetters();
+}
+
+async function deleteLetter(letterId) {
+  const user = getSession();
+
+  if (!user) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      'Move this letter to Deleted?'
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const { error } = await db
+    .from('letters')
+    .update({
+      deleted_at: new Date().toISOString()
+    })
+    .eq('id', letterId)
+    .or(
+      'sender_id.eq.' +
+      user.id +
+      ',recipient_id.eq.' +
+      user.id
+    );
+
+  if (error) {
+    console.error(
+      'Delete letter error:',
+      error
+    );
+
+    toast(
+      'Could not delete letter.',
+      true
+    );
+
+    return;
+  }
+
+  await renderLetters();
+}
+
+async function restoreLetter(letterId) {
+  const user = getSession();
+
+  if (!user) {
+    return;
+  }
+
+  const { error } = await db
+    .from('letters')
+    .update({
+      deleted_at: null
+    })
+    .eq('id', letterId)
+    .or(
+      'sender_id.eq.' +
+      user.id +
+      ',recipient_id.eq.' +
+      user.id
+    );
+
+  if (error) {
+    console.error(
+      'Restore letter error:',
+      error
+    );
+
+    toast(
+      'Could not restore letter.',
+      true
+    );
+
+    return;
+  }
+
+  await renderLetterLibrary();
+}
+
+async function permanentlyDeleteLetter(
+  letterId
+) {
+  const user = getSession();
+
+  if (!user) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      'Permanently delete this letter? This cannot be undone.'
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const { error } = await db
+    .from('letters')
+    .delete()
+    .eq('id', letterId)
+    .or(
+      'sender_id.eq.' +
+      user.id +
+      ',recipient_id.eq.' +
+      user.id
+    );
+
+  if (error) {
+    console.error(
+      'Permanent delete error:',
+      error
+    );
+
+    toast(
+      'Could not permanently delete letter.',
+      true
+    );
+
+    return;
+  }
+
+  await renderLetterLibrary();
+}
+
 function renderReceivedLetter(letter) {
   const opensAt =
     new Date(letter.opens_at).getTime();
@@ -1122,6 +1387,7 @@ function renderReceivedLetter(letter) {
 
   const senderId =
     sender?.user_id || 'Unknown ID';
+
 
   return `
     <article
@@ -1175,6 +1441,47 @@ function renderReceivedLetter(letter) {
             : '📖 Tap to read this letter.'
         }
       </div>
+      
+      <div
+  class="letter-actions"
+  onclick="event.stopPropagation()"
+>
+  <button
+    class="letter-action"
+    type="button"
+    data-action="favourite"
+    data-letter-id="${esc(letter.id)}"
+    aria-label="Favourite letter"
+  >
+    ${
+      letter.is_favourite
+        ? '★ Favourited'
+        : '☆ Favourite'
+    }
+  </button>
+
+  <button
+    class="letter-action"
+    type="button"
+    data-action="archive"
+    data-letter-id="${esc(letter.id)}"
+  >
+    ${
+      letter.archived_at
+        ? '↩ Unarchive'
+        : '🗃 Archive'
+    }
+  </button>
+
+  <button
+    class="letter-action letter-action--danger"
+    type="button"
+    data-action="delete"
+    data-letter-id="${esc(letter.id)}"
+  >
+    🗑 Delete
+  </button>
+</div>
     </article>
   `;
 }
@@ -1197,6 +1504,7 @@ function renderSentLetter(letter) {
 
   const recipientId =
     recipient?.user_id || 'Unknown ID';
+
 
   return `
     <article
@@ -1250,6 +1558,47 @@ function renderSentLetter(letter) {
             : esc(letter.body)
         }
       </div>
+
+      <div
+  class="letter-actions"
+  onclick="event.stopPropagation()"
+>
+  <button
+    class="letter-action"
+    type="button"
+    data-action="favourite"
+    data-letter-id="${esc(letter.id)}"
+    aria-label="Favourite letter"
+  >
+    ${
+      letter.is_favourite
+        ? '★ Favourited'
+        : '☆ Favourite'
+    }
+  </button>
+
+  <button
+    class="letter-action"
+    type="button"
+    data-action="archive"
+    data-letter-id="${esc(letter.id)}"
+  >
+    ${
+      letter.archived_at
+        ? '↩ Unarchive'
+        : '🗃 Archive'
+    }
+  </button>
+
+  <button
+    class="letter-action letter-action--danger"
+    type="button"
+    data-action="delete"
+    data-letter-id="${esc(letter.id)}"
+  >
+    🗑 Delete
+  </button>
+</div>
     </article>
   `;
 }
@@ -1274,6 +1623,58 @@ function attachLetterCardHandlers() {
           ) {
             event.preventDefault();
             handleLetterCardClick(card);
+          }
+        }
+      );
+    });
+
+  document
+    .querySelectorAll('.letter-action')
+    .forEach(function (button) {
+      button.addEventListener(
+        'click',
+        async function (event) {
+          event.stopPropagation();
+
+          const letterId =
+            button.dataset.letterId;
+
+          const action =
+            button.dataset.action;
+
+          const letters =
+            await getLetters();
+
+          const letter =
+            letters.find(function (item) {
+              return item.id === letterId;
+            });
+
+          if (!letter) {
+            toast(
+              'Letter could not be found.',
+              true
+            );
+
+            return;
+          }
+
+          if (action === 'favourite') {
+            await toggleLetterFavourite(
+              letter.id,
+              letter.is_favourite
+            );
+          }
+
+          if (action === 'archive') {
+            await toggleLetterArchive(
+              letter.id,
+              letter.archived_at
+            );
+          }
+
+          if (action === 'delete') {
+            await deleteLetter(letter.id);
           }
         }
       );
@@ -1368,6 +1769,334 @@ async function openLetter(letterId) {
     esc(letter.title) +
     '</b> is now open! 📖'
   );
+}
+
+let activeLibraryTab = 'archived';
+
+
+async function renderLetterLibrary() {
+  const list =
+    document.getElementById(
+      'letterLibraryList'
+    );
+
+  if (!list) {
+    return;
+  }
+
+  const user =
+    getSession();
+
+  if (!user) {
+    list.innerHTML = `
+      <div class="letter-empty">
+        Sign in to view your letter library.
+      </div>
+    `;
+
+    attachLibraryLetterHandlers();
+
+    return;
+  }
+
+  const letters =
+    await getLetters();
+
+  console.log(
+    'Library letters loaded:',
+    letters
+  );
+
+  const visibleLetters =
+    letters.filter(function (letter) {
+      if (
+        activeLibraryTab === 'archived'
+      ) {
+        return (
+          letter.archived_at != null &&
+          letter.deleted_at == null
+        );
+      }
+
+      if (
+        activeLibraryTab === 'favourite'
+      ) {
+        return (
+          letter.is_favourite === true &&
+          letter.deleted_at == null
+        );
+      }
+
+      if (
+        activeLibraryTab === 'deleted'
+      ) {
+        return letter.deleted_at != null;
+      }
+
+      return false;
+    });
+
+  if (!visibleLetters.length) {
+    list.innerHTML = `
+      <div class="letter-empty">
+        No ${activeLibraryTab} letters yet.
+      </div>
+    `;
+
+    attachLibraryLetterHandlers();
+
+    return;
+  }
+
+  list.innerHTML =
+    visibleLetters
+      .map(renderLibraryLetter)
+      .join('');
+
+  attachLibraryLetterHandlers();
+}
+
+function renderLibraryLetter(letter) {
+  const user =
+    getSession();
+
+  const isReceived =
+    letter.recipient_id === user.id;
+
+  const otherProfile =
+    isReceived
+      ? letter.senderProfile
+      : letter.recipientProfile;
+
+  const otherName =
+    otherProfile?.name ||
+    'Mint Eclipse user';
+
+  const otherId =
+    otherProfile?.user_id ||
+    'Unknown ID';
+
+  const isDeleted =
+    Boolean(letter.deleted_at);
+
+  return `
+    <article
+      class="letter-card library-letter-card"
+      data-letter-id="${esc(letter.id)}"
+    >
+      <div class="letter-top">
+        <div>
+          <div class="letter-title">
+            ${esc(letter.title)}
+          </div>
+
+          <div class="letter-meta">
+            ${
+              isReceived
+                ? 'From'
+                : 'To'
+            }
+            <b class="mint">
+              ${esc(otherName)}
+            </b>
+            · ID:
+            <b>
+              ${esc(otherId)}
+            </b>
+          </div>
+
+          <div class="letter-meta">
+            ${new Date(
+              letter.created_at
+            ).toLocaleString()}
+          </div>
+        </div>
+
+        <div class="letter-badges">
+          ${
+            letter.is_favourite
+              ? '<span class="chip">★ Favourite</span>'
+              : ''
+          }
+
+          ${
+            letter.archived_at &&
+            !isDeleted
+              ? '<span class="chip">🗃 Archived</span>'
+              : ''
+          }
+
+          ${
+            isDeleted
+              ? '<span class="chip chip--danger">🗑 Deleted</span>'
+              : ''
+          }
+        </div>
+      </div>
+
+      <div class="letter-body">
+        ${esc(letter.body)}
+      </div>
+
+      <div
+        class="letter-actions"
+        onclick="event.stopPropagation()"
+      >
+        ${
+          isDeleted
+            ? `
+              <button
+                class="letter-action"
+                type="button"
+                data-library-action="restore"
+                data-letter-id="${esc(letter.id)}"
+              >
+                ↩ Restore
+              </button>
+
+              <button
+                class="letter-action letter-action--danger"
+                type="button"
+                data-library-action="permanent-delete"
+                data-letter-id="${esc(letter.id)}"
+              >
+                Permanently delete
+              </button>
+            `
+            : `
+              <button
+                class="letter-action"
+                type="button"
+                data-library-action="archive"
+                data-letter-id="${esc(letter.id)}"
+              >
+                ${
+                  letter.archived_at
+                    ? '↩ Unarchive'
+                    : '🗃 Archive'
+                }
+              </button>
+
+              <button
+                class="letter-action"
+                type="button"
+                data-library-action="favourite"
+                data-letter-id="${esc(letter.id)}"
+              >
+                ${
+                  letter.is_favourite
+                    ? '★ Unfavourite'
+                    : '☆ Favourite'
+                }
+              </button>
+
+              <button
+                class="letter-action letter-action--danger"
+                type="button"
+                data-library-action="delete"
+                data-letter-id="${esc(letter.id)}"
+              >
+                🗑 Delete
+              </button>
+            `
+        }
+      </div>
+    </article>
+  `;
+}
+
+function attachLibraryLetterHandlers() {
+  document
+    .querySelectorAll('.letter-tab')
+    .forEach(function (tab) {
+      tab.onclick = async function () {
+        activeLibraryTab =
+          tab.dataset.libraryTab;
+
+        document
+          .querySelectorAll('.letter-tab')
+          .forEach(function (item) {
+            item.classList.toggle(
+              'active',
+              item === tab
+            );
+          });
+
+        await renderLetterLibrary();
+      };
+    });
+
+  document
+    .querySelectorAll(
+      '[data-library-action]'
+    )
+    .forEach(function (button) {
+      button.onclick = async function (event) {
+        event.stopPropagation();
+
+        const letterId =
+          button.dataset.letterId;
+
+        const action =
+          button.dataset.libraryAction;
+
+        if (action === 'restore') {
+          await restoreLetter(letterId);
+          await renderLetterLibrary();
+          return;
+        }
+
+        if (action === 'permanent-delete') {
+          await permanentlyDeleteLetter(
+            letterId
+          );
+          await renderLetterLibrary();
+          return;
+        }
+
+        const letters =
+          await getLetters();
+
+        const letter =
+          letters.find(function (item) {
+            return item.id === letterId;
+          });
+
+        if (!letter) {
+          toast(
+            'Letter could not be found.',
+            true
+          );
+
+          return;
+        }
+
+        if (action === 'archive') {
+          await toggleLetterArchive(
+            letter.id,
+            letter.archived_at
+          );
+
+          await renderLetterLibrary();
+          return;
+        }
+
+        if (action === 'favourite') {
+          await toggleLetterFavourite(
+            letter.id,
+            letter.is_favourite
+          );
+
+          await renderLetterLibrary();
+          return;
+        }
+
+        if (action === 'delete') {
+          await deleteLetter(letter.id);
+          await renderLetterLibrary();
+        }
+      };
+    });
 }
 
 /* ---------- events: Supabase version ---------- */
@@ -2125,13 +2854,12 @@ window.switchAuth = function (mode) {
 
 async function initPage() {
   await loadCurrentUser();
+
   applyUIState();
 
-  // Temporary localStorage data.
-  // These will later be migrated to Supabase.
-
   const page =
-    location.pathname.split('/').pop() || 'index.html';
+    location.pathname.split('/').pop() ||
+    'index.html';
 
   const pageMap = {
     'index.html': 'home',
@@ -2139,7 +2867,8 @@ async function initPage() {
     'events.html': 'events',
     'photos.html': 'photos',
     'login.html': 'login',
-    'profile.html': 'profile'
+    'profile.html': 'profile',
+    'letter-library.html': 'letter-library'
   };
 
   const currentPage =
@@ -2163,59 +2892,78 @@ async function initPage() {
       );
     });
 
-  await renderBucket();
-  await renderLetters();
-  await renderEvents();
-  await renderPhotos();
+  if (page === 'bucket.html') {
+    await renderBucket();
+  }
+
+  if (page === 'events.html') {
+    await renderLetters();
+    await renderEvents();
+  }
+
+  if (page === 'photos.html') {
+    await renderPhotos();
+  }
+
+  if (page === 'profile.html') {
+    await renderProfile();
+  }
+
+  if (page === 'letter-library.html') {
+    await renderLetterLibrary();
+  }
 
   const eventForm =
-  document.getElementById('eventForm');
+    document.getElementById('eventForm');
 
-if (eventForm) {
-  eventForm.addEventListener(
-    'submit',
-    handleEventFormSubmit
-  );
-}
-
-  if (page === 'profile.html') {
-    await renderProfile();
+  if (eventForm) {
+    eventForm.addEventListener(
+      'submit',
+      handleEventFormSubmit
+    );
   }
 
-  if (
-    page === 'events.html' ||
-    page === 'profile.html'
-  ) {
-   setInterval(async function () {
   if (page === 'events.html') {
-    await updateLetterCountdowns();
+    setInterval(async function () {
+      await updateLetterCountdowns();
+    }, 1000);
   }
 
   if (page === 'profile.html') {
-    await renderProfile();
+    setInterval(async function () {
+      await renderProfile();
+    }, 1000);
   }
-}, 1000);
-  }
 
-  document.addEventListener('click', function (event) {
-    if (!event.target.closest('.avatar-wrap')) {
-      document
-        .querySelectorAll('.dropdown')
-        .forEach(function (dropdown) {
-          dropdown.classList.remove('show');
-        });
+  document.addEventListener(
+    'click',
+    function (event) {
+      if (
+        !event.target.closest(
+          '.avatar-wrap'
+        )
+      ) {
+        document
+          .querySelectorAll('.dropdown')
+          .forEach(function (dropdown) {
+            dropdown.classList.remove('show');
+          });
+      }
     }
-  });
+  );
 
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape') {
-      closeSidebar();
+  document.addEventListener(
+    'keydown',
+    function (event) {
+      if (event.key === 'Escape') {
+        closeSidebar();
 
-      document
-        .getElementById('lightbox')
-        ?.classList.remove('show');
+        document
+          .getElementById('lightbox')
+          ?.classList.remove('show');
+      }
     }
-  });
+  );
 }
 
 
